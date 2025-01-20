@@ -1,0 +1,15 @@
+/project
+    /src
+        /index.ts
+        /runCode.ts
+        /saveTestCases.ts
+        /fetchTestCases.ts
+    /testcases 
+        /testcase_1
+            /input.txt
+            /output.txt
+            /expected_output.txt
+        /testcase_2
+        .
+        ....
+    /user_solutions {cpp,py} (optional)
