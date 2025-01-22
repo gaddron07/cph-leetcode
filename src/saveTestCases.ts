@@ -47,28 +47,6 @@ function parseInput(input: string): any[] {
     });
 }
 
-function format(input: string): string {
-    const result: string[] = [];
-    const parts = input.match(/\[.*?\]|[^,\[\]]+/g); // Split into groups
-    if (!parts) {return '';}
-
-    for (let part of parts) {
-        part = part.trim();
-        if (part.startsWith('[') && part.endsWith(']')) {
-            // For arrays, remove brackets and format with spaces
-            const rows = part
-                .replace(/[\[\]]/g, '') // Remove brackets
-                .split('],') // Split by rows
-                .map(row => row.replace(/,/g, ' ').trim()); // Replace commas with spaces
-            result.push(...rows);
-        } else {
-            result.push(part.trim());
-        }
-    }
-
-    return result.join('\n');
-}
-
 export function formatListFromInput(input: string): string {
     // Preprocess the input to handle `][` edge case
     input = preprocessInput(input);
@@ -89,10 +67,6 @@ export function formatListFromInput(input: string): string {
     return formattedValues.join('\n').trim();
 }
 
-
-// Example Usage
-//const input = "[\"MedianFinder\", \"addNum\", \"addNum\", \"findMedian\", \"addNum\", \"findMedian\"][[], [1], [2], [], [3], []]";
-//console.log(formatListFromInput(input));
 export async function saveTestCases(
     inputs: string[],
     expectedOutputs: string[],
