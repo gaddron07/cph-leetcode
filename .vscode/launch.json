@@ -2,16 +2,44 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
+      "name": "Run Extension",
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "preLaunchTask": "npm: watch"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Extension",
+      "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ],
-      "preLaunchTask": "${defaultBuildTask}"
+      //"preLaunchTask": "npm: watch"
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "C++ Debug",
+      "program": "${workspaceFolder}/build/your_executable_name",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:/MinGW/bin/gdb.exe",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
     },
     {
       "name": "C/C++ Runner: Debug Session",
@@ -20,8 +48,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/samit/OneDrive/Desktop/cph-leetcode-helper/src",
-      "program": "c:/Users/samit/OneDrive/Desktop/cph-leetcode-helper/src/build/Debug/outDebug",
+      "cwd": "c:/Users/samit/OneDrive/Desktop/cph-leetcode",
+      "program": "c:/Users/samit/OneDrive/Desktop/cph-leetcode/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
