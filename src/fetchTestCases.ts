@@ -1,11 +1,15 @@
 import puppeteer from 'puppeteer-extra';
-import StealthPlugin = require('puppeteer-extra-plugin-stealth');
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
+// Apply the stealth plugin
 puppeteer.use(StealthPlugin());
 
 export async function fetchTestCases(url: string): Promise<{ inputs: string[]; expectedOutputs: string[] }> {
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+        const page = await browser.newPage();
 
     try {
         console.log('Navigating to LeetCode URL...');
@@ -29,7 +33,7 @@ export async function fetchTestCases(url: string): Promise<{ inputs: string[]; e
                     inputs.push(inputMatch[1].trim());
                 }
 
-                // We now only extract the expected output (actual output provided by LeetCode)
+                // Extract the expected output (actual output provided by LeetCode)
                 if (outputMatch && outputMatch[1]) {
                     expectedOutputs.push(outputMatch[1].split(/\n/)[0].trim()); // Store the expected output
                 }
