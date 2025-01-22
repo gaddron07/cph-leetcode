@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+	  "target": "ESNext",                  // Set the JavaScript target version
+	  "module": "commonjs",               // Module system for Node.js
+	  "rootDir": "src",                   // Directory containing TypeScript files
+	  "outDir": "dist",                   // Directory for compiled JavaScript files
+	  "strict": true,                     // Enable strict type-checking
+	  "esModuleInterop": true,            // Allow default imports from non-ES modules
+	  "skipLibCheck": true                // Skip checking type definitions in node_modules
+	},
+	"include": ["src", "dist/extension.js", "dist/fetchTestCases.js", "dist/index.js", "dist/runCode.js", "dist/saveTestCases.js"],                   // Files to include in compilation
+	"exclude": ["node_modules"]           // Files to exclude from compilation
+  }
+  
