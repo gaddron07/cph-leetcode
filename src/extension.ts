@@ -1,189 +1,20 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
-import { fetchTestCases } from './fetchTestCases';
-import { saveTestCases } from './saveTestCases';
-import { runCode } from './runCode';
-
-export function activate(context: vscode.ExtensionContext) {
-    console.log('CPH Leetcode Extension Activated.');
-
-    // Helper to create the workspace
-    const createWorkspaceDir = (): string => {
-        const homeDir = process.env.HOME || process.env.USERPROFILE || '~';
-        const workspaceDir = path.join(homeDir, 'CPH-LeetCode-Workspace');
-        const srcDir = path.join(workspaceDir, 'src');
-        const testcasesDir = path.join(workspaceDir, 'testcases');
-
-        if (!fs.existsSync(workspaceDir)) {
-            console.log('Creating workspace...');
-            fs.mkdirSync(workspaceDir, { recursive: true });
-
-            // Create src folder with predefined files
-            if (!fs.existsSync(srcDir)) {
-                console.log('Creating src folder...');
-                fs.mkdirSync(srcDir, { recursive: true });
-
-                const files = {
-                    'index.ts': `
-import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
-import { fetchTestCases } from './fetchTestCases';
-import { saveTestCases } from './saveTestCases';
-import { runCode } from './runCode';
-
-export function activate(context: vscode.ExtensionContext) {
-    console.log('LeetCode Helper Extension Activated.');
-
-    let fetchRunTestCases = vscode.commands.registerCommand('extension.fetchRunTestCases', async () => {
-        const problemName = await vscode.window.showInputBox({
-            prompt: 'Enter the LeetCode problem name',
-        });
-
-        if (!problemName) {
-            vscode.window.showErrorMessage('Problem name is required!');
-            return;
-        }
-
-        const language = await vscode.window.showQuickPick(['cpp', 'python'], {
-            placeHolder: 'Choose the programming language for the solution file',
-        });
-
-        if (!language) {
-            vscode.window.showErrorMessage('Language is required!');
-            return;
-        }
-
-        // Create the user-specific workspace
-        const workspaceDir = path.resolve(context.extensionPath, 'user');
-        const outputDir = path.resolve(context.extensionPath, 'testcases');
-
-        // Fetch test cases
-        const url = \`https://leetcode.com/problems/\${problemName}/description/\`;
-        try {
-            if (fs.existsSync(outputDir)) {
-                fs.rmSync(outputDir, { recursive: true, force: true });
-            }
-
-            console.log('Fetching test cases...');
-            const { inputs, expectedOutputs } = await fetchTestCases(url);
-
-            if (!inputs.length || !expectedOutputs.length) {
-                vscode.window.showErrorMessage('No test cases were found. Please check the problem URL or page structure.');
-                return;
-            }
-
-            if (inputs.length !== expectedOutputs.length) {
-                throw new Error('Mismatch between number of inputs and expected outputs.');
-            }
-
-            console.log(\`Fetched \${inputs.length} test cases.\`);
-            if (!fs.existsSync(outputDir)) {
-                fs.mkdirSync(outputDir, { recursive: true });
-            }
-
-            console.log('Saving new test cases...');
-            await saveTestCases(inputs, expectedOutputs, outputDir);
-
-            vscode.window.showInformationMessage('Test cases fetched and saved successfully!');
-
-            // Ask if user wants to add a custom test case
-            const addCustom = await vscode.window.showQuickPick(['Yes', 'No'], {
-                placeHolder: 'Would you like to add a custom test case?',
-            });
-
-            if (addCustom === 'Yes') {
-                const testCaseNumber = fs.readdirSync(outputDir).filter((dir) => dir.startsWith('testcase_')).length + 1;
-                const testCaseDir = path.join(outputDir, \`testcase_\${testCaseNumber}\`);
-
-                if (!fs.existsSync(testCaseDir)) {
-                    fs.mkdirSync(testCaseDir, { recursive: true });
-                }
-
-                const input = await vscode.window.showInputBox({
-                    prompt: 'Enter the input for the custom test case:',
-                });
-
-                const expectedOutput = await vscode.window.showInputBox({
-                    prompt: 'Enter the expected output for the custom test case:',
-                });
-
-                if (input && expectedOutput) {
-                    fs.writeFileSync(path.join(testCaseDir, 'input.txt'), input.trim());
-                    fs.writeFileSync(path.join(testCaseDir, 'expected_output.txt'), expectedOutput.trim());
-                    vscode.window.showInformationMessage(\`Test case \${testCaseNumber} added successfully.\`);
-                }
-            }
-
-            // Run the test cases
-            console.log('Running tests...');
-            const results: any[] = [];
-            for (let i = 0; i < inputs.length; i++) {
-                const testCaseDir = path.join(outputDir, \`testcase_\${i + 1}\`);
-                const expectedOutput = expectedOutputs[i].trim();
-
-                await runCode(language, path.join(testCaseDir, 'input.txt'), path.join(testCaseDir, 'output.txt'), path.resolve(workspaceDir, \`main.\${language}\`), (err, userOutput) => {
-                    if (err) {
-                        results.push({
-                            test: i + 1,
-                            status: 'Error',
-                            reason: err.message,
-                        });
-                    } else {
-                        const normalizedUserOutput = userOutput ? userOutput.trim() : '';
-                        const normalizedExpectedOutput = expectedOutput.trim();
-
-                        if (normalizedUserOutput === normalizedExpectedOutput) {
-                            results.push({ test: i + 1, status: 'Passed' });
-                        } else {
-                            results.push({
-                                test: i + 1,
-                                status: 'Failed',
-                                reason: \`Expected "\${normalizedExpectedOutput}\", but got "\${normalizedUserOutput}"\`,
-                            });
-                        }
-                    }
-                });
-            }
-
-            // Display the results
-            console.log('Test Results:');
-            results.forEach(({ test, status, reason }) => {
-                console.log(\`Test \${test}: \${status}\${reason ? \` - \${reason}\` : ''}\`);
-            });
-
-            const passed = results.filter((result) => result.status === 'Passed').length;
-            const failed = results.filter((result) => result.status === 'Failed').length;
-            const errors = results.filter((result) => result.status === 'Error').length;
-
-            vscode.window.showInformationMessage(\`Test Results: \${passed} Passed, \${failed} Failed, \${errors} Errors\`);
-
-        } catch (error: unknown) {
-            if (error instanceof Error) {
-                vscode.window.showErrorMessage(\`An error occurred: \${error.message}\`);
-            } else {
-                vscode.window.showErrorMessage('An unknown error occurred.');
-            }
-        }
-    });
-
-    context.subscriptions.push(fetchRunTestCases);
-}
-
-export function deactivate() {
-    console.log('LeetCode Helper Extension Deactivated.');
-}
-`,
-                    'fetchTestCases.ts': `
+import { exec } from 'child_process';
+import os from 'os';
 import puppeteer from 'puppeteer-extra';
-import StealthPlugin = require('puppeteer-extra-plugin-stealth');
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
+// Apply the stealth plugin
 puppeteer.use(StealthPlugin());
 
-export async function fetchTestCases(url: string): Promise<{ inputs: string[]; expectedOutputs: string[] }> {
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
+async function fetchTestCases(url: string): Promise<{ inputs: string[]; expectedOutputs: string[] }> {
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+        const page = await browser.newPage();
 
     try {
         console.log('Navigating to LeetCode URL...');
@@ -207,7 +38,7 @@ export async function fetchTestCases(url: string): Promise<{ inputs: string[]; e
                     inputs.push(inputMatch[1].trim());
                 }
 
-                // We now only extract the expected output (actual output provided by LeetCode)
+                // Extract the expected output (actual output provided by LeetCode)
                 if (outputMatch && outputMatch[1]) {
                     expectedOutputs.push(outputMatch[1].split(/\n/)[0].trim()); // Store the expected output
                 }
@@ -235,13 +66,10 @@ export async function fetchTestCases(url: string): Promise<{ inputs: string[]; e
         console.log('Browser closed.');
     }
 }
-`,
-                    'saveTestCases.ts': `
-import * as fs from 'fs';
-import * as path from 'path';
+
 
 function preprocessInput(input: string): string {
-    // Replace instances of \`][\` with \`],[\`
+    // Replace instances of `][` with `],[`
     return input.replace(/\]\[/g, '],[');
 }
 
@@ -258,7 +86,7 @@ function parseInput(input: string): any[] {
 
         // When encountering a comma at the top level or reaching the end of the input
         if ((char === ',' && openBrackets === 0) || i === input.length - 1) {
-            const value = current.split('=').pop()?.trim(); // Remove the name (before \`=\`)
+            const value = current.split('=').pop()?.trim(); // Remove the name (before `=`)
             if (value) {values.push(value.replace(/,$/, '')); }// Remove trailing commas
             current = '';
         }
@@ -266,7 +94,7 @@ function parseInput(input: string): any[] {
 
     return values.map(value => {
         try {
-            // Attempt to parse the value as JSON if it starts with \`{\` or \`[\`
+            // Attempt to parse the value as JSON if it starts with `{` or `[`
             if (value.startsWith('[') || value.startsWith('{')) {
                 return JSON.parse(value);
             }
@@ -286,30 +114,8 @@ function parseInput(input: string): any[] {
     });
 }
 
-function format(input: string): string {
-    const result: string[] = [];
-    const parts = input.match(/\[.*?\]|[^,\[\]]+/g); // Split into groups
-    if (!parts) {return '';}
-
-    for (let part of parts) {
-        part = part.trim();
-        if (part.startsWith('[') && part.endsWith(']')) {
-            // For arrays, remove brackets and format with spaces
-            const rows = part
-                .replace(/[\[\]]/g, '') // Remove brackets
-                .split('],') // Split by rows
-                .map(row => row.replace(/,/g, ' ').trim()); // Replace commas with spaces
-            result.push(...rows);
-        } else {
-            result.push(part.trim());
-        }
-    }
-
-    return result.join('\n');
-}
-
-export function formatListFromInput(input: string): string {
-    // Preprocess the input to handle \`][\` edge case
+function formatListFromInput(input: string): string {
+    // Preprocess the input to handle `][` edge case
     input = preprocessInput(input);
 
     const parsedValues = parseInput(input); // Extract values
@@ -328,11 +134,7 @@ export function formatListFromInput(input: string): string {
     return formattedValues.join('\n').trim();
 }
 
-
-// Example Usage
-//const input = "[\"MedianFinder\", \"addNum\", \"addNum\", \"findMedian\", \"addNum\", \"findMedian\"][[], [1], [2], [], [3], []]";
-//console.log(formatListFromInput(input));
-export async function saveTestCases(
+async function saveTestCases(
     inputs: string[],
     expectedOutputs: string[],
     outputDir: string
@@ -350,7 +152,7 @@ export async function saveTestCases(
         const expectedOutput = expectedOutputs[i];
 
         if (!input || !expectedOutput) {
-            console.error(\`Skipping test case \${i + 1}: Missing input/output.\`);
+            console.error(`Skipping test case ${i + 1}: Missing input/output.`);
             skippedCount++;
             continue;
         }
@@ -358,7 +160,7 @@ export async function saveTestCases(
         const formattedInput = formatListFromInput(input);
         const formattedExpectedOutput = formatListFromInput(expectedOutput);
 
-        const testCaseDir = path.join(testcasesDir, \`testcase_\${i + 1}\`);
+        const testCaseDir = path.join(testcasesDir, `testcase_${i + 1}`);
         if (!fs.existsSync(testCaseDir)) {
             fs.mkdirSync(testCaseDir);
         }
@@ -370,24 +172,16 @@ export async function saveTestCases(
             fs.writeFileSync(inputFilePath, formattedInput);
             fs.writeFileSync(outputFilePath, formattedExpectedOutput);
 
-            console.log(\`Test case \${i + 1} saved successfully.\`);
+            console.log(`Test case ${i + 1} saved successfully.`);
             savedCount++;
         } catch (err) {
-            console.error(\`Error saving test case \${i + 1}: \${err instanceof Error ? err.message : String(err)}\`);
+            console.error(`Error saving test case ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
             skippedCount++;
         }
     }
 
-    console.log(\`\nSummary: \${savedCount} test cases saved, \${skippedCount} skipped.\`);
+    console.log(`\nSummary: ${savedCount} test cases saved, ${skippedCount} skipped.`);
 }
-
-                    `,
-                    'runCode.ts': `
-import * as fs from 'fs';
-import * as path from 'path';
-import { exec } from 'child_process';
-import * as os from 'os';
-
 interface LanguageConfig {
     name: string;
     runCommand: string;
@@ -403,7 +197,7 @@ const languages: { [key: string]: LanguageConfig } = {
     javascript: { name: 'javascript', runCommand: 'node', fileExtension: '.js', execCommand: 'node' },
 };
 
-export function runCode(
+function runCode(
     language: string,
     inputPath: string,
     outputPath: string,
@@ -412,44 +206,44 @@ export function runCode(
 ): void {
     const lang = languages[language.toLowerCase()];
     if (!lang) {
-        return callback(new Error(\`Unsupported language: \${language}\`), null);
+        return callback(new Error(`Unsupported language: ${language}`), null);
     }
 
     const inputFile = path.resolve(inputPath);
     const outputFile = path.resolve(outputPath);
 
     if (!fs.existsSync(inputFile)) {
-        return callback(new Error(\`Input file not found: \${inputFile}\`), null);
+        return callback(new Error(`Input file not found: ${inputFile}`), null);
     }
 
     if (!fs.existsSync(path.dirname(outputFile))) {
-        return callback(new Error(\`Output directory does not exist: \${path.dirname(outputFile)}\`), null);
+        return callback(new Error(`Output directory does not exist: ${path.dirname(outputFile)}`), null);
     }
 
     if (!solutionFile.endsWith(lang.fileExtension)) {
         return callback(
-            new Error(\`Incorrect solution file extension. Expected \${lang.fileExtension}, got \${path.extname(solutionFile)}\`),
+            new Error(`Incorrect solution file extension. Expected ${lang.fileExtension}, got ${path.extname(solutionFile)}`),
             null
         );
     }
 
     const solutionFilePath = path.resolve(solutionFile);
     if (!fs.existsSync(solutionFilePath)) {
-        return callback(new Error(\`Solution file not found: \${solutionFilePath}\`), null);
+        return callback(new Error(`Solution file not found: ${solutionFilePath}`), null);
     }
 
     let command = '';
     if (lang.name === 'python' || lang.name === 'javascript') {
-        command = \`\${lang.runCommand} \${solutionFilePath} < \${inputFile} > \${outputFile}\`;
+        command = `${lang.runCommand} ${solutionFilePath} < ${inputFile} > ${outputFile}`;
         executeCommand(command, outputFile, callback);
     } else if (lang.name === 'cpp') {
         const compiledFile = os.platform() === 'win32' ? 'user_solution.exe' : './user_solution';
-        const compileCommand = \`\${lang.compileCommand} user_solution \${solutionFilePath}\`;
+        const compileCommand = `${lang.compileCommand} user_solution ${solutionFilePath}`;
         exec(compileCommand, (compileErr) => {
             if (compileErr) {
                 return callback(new Error('C++ compilation failed: ' + compileErr.message), null);
             }
-            command = \`\${compiledFile} < \${inputFile} > \${outputFile}\`;
+            command = `${compiledFile} < ${inputFile} > ${outputFile}`;
             executeCommand(command, outputFile, (err, result) => {
                 if (!err) {
                     cleanup(compiledFile);
@@ -458,16 +252,16 @@ export function runCode(
             });
         });
     } else if (lang.name === 'java') {
-        const compileCommand = \`\${lang.compileCommand} \${solutionFilePath}\`;
+        const compileCommand = `${lang.compileCommand} ${solutionFilePath}`;
         exec(compileCommand, (compileErr) => {
             if (compileErr) {
                 return callback(new Error('Java compilation failed: ' + compileErr.message), null);
             }
             const className = path.basename(solutionFilePath, '.java');
-            command = \`\${lang.execCommand} \${className} < \${inputFile} > \${outputFile}\`;
+            command = `${lang.execCommand} ${className} < ${inputFile} > ${outputFile}`;
             executeCommand(command, outputFile, (err, result) => {
                 if (!err) {
-                    cleanup(\`\${className}.class\`);
+                    cleanup(`${className}.class`);
                 }
                 callback(err, result);
             });
@@ -504,366 +298,464 @@ function cleanup(filePath: string): void {
             fs.unlinkSync(filePath);
         }
     } catch (err) {
-        console.error(\`Failed to clean up file: \${filePath}, \${(err as Error).message}\`);
+        console.error(`Failed to clean up file: ${filePath}, ${(err as Error).message}`);
     }
 }
-`,
-                };
 
-                for (const [fileName, content] of Object.entries(files)) {
-                    fs.writeFileSync(path.join(srcDir, fileName), content, 'utf8');
-                }
-            }
-
-            // Create testcases folder
-            if (!fs.existsSync(testcasesDir)) {
-                console.log('Creating testcases folder...');
-                fs.mkdirSync(testcasesDir, { recursive: true });
-            }
-
-            // Create user files folder with templates
-            if (true) {
-                console.log('Creating user files folder...');
-        
-
-                const files = {
-                    
-'main.cpp': `
-#include <bits/stdc++.h>
-#include "ListNode.h"
-using namespace std;
-
-
-// Function to read input from file
-string readInputFromFile(const string& filename) {
-ifstream file(filename);
-stringstream buffer;
-buffer << file.rdbuf(); // Read the entire file into the buffer
-return buffer.str(); // Return the content as a string
-}
-
-/**
-* USER INSTRUCTIONS:
-* 1. Parse the input using "parseInput".
-* 2. Convert arguments to desired types:
-*    - 1D Array: Use "stringToArray" with the required conversion function.
-*    - 2D Matrix: Use "stringToMatrix" with the required conversion function.
-*    - Linked List: Use "arrayToLinkedList".
-*    - Doubly Linked List: Use "arrayToDoubleLinkedList".
-*    - Binary Tree: Use "arrayToTree".
-* 3. Use tree traversal functions for traversal:
-*    - Inorder: "inorderTraversal".
-*    - Preorder: "preorderTraversal".
-*    - Postorder: "postorderTraversal".
-* 4. Write your solution using the converted data in the designated section.
-*/
-
-
-int main() {
-// this are needed for reading from file so must be in code
-string line;
-stringstream inputStream;
-while (getline(cin, line)) {
-    inputStream << line;
-}
-string inputData = inputStream.str();  // Get the complete input as a string
-vector<int> arr;
-arr = stringToArray<int>(inputData, stringToInt); // Use the helper function to convert to array
-// Here the arguments are parsed and converted to the desired type
-
-
-
-// Now you can use your desired operation
-
-return 0;
-}
-`,
-                'main.py': `import sys
-from listNode import parse_input, array_to_linked_list, array_to_double_linked_list, array_to_tree, traversal_inorder, traversal_preorder, traversal_postorder
-
-"""
-Instructions for the User:
-1. Write your solution code below the section "# User Solution Code Goes Here".
-2. If your solution requires converting an input to a specific structure, use the functions:
-- Convert 1D/2D arrays: Use "conversion_to_list(arg)".
-- Convert to linked list: Use "array_to_linked_list(argument)".
-- Convert to double linked list: Use "array_to_double_linked_list(argument)".
-- Convert to tree: Use "array_to_tree(argument)".
-- For specific traversal of trees:
-  - Use "traversal_inorder(array_to_tree(argument))" for in-order.
-  - Use "traversal_preorder(array_to_tree(argument))" for pre-order.
-  - Use "traversal_postorder(array_to_tree(argument))" for post-order.
-
-3. You can pass any parsed arguments (converted or raw) to your solution function as required.
-
-4. Input:
-- The program reads all inputs from stdin. Input is provided line by line.
-- For multiple arguments, ensure inputs are provided in the correct order.
-
-5. Output:
-- Print the output of your solution.
-"""
-
-# User Solution Code Goes Here
-
-# Read input for arguments
-arg = sys.stdin.read().strip().split('/n')
-
-# Parse and process arguments
-args = parse_input(arg)
-
-# Example: Convert inputs to required formats as needed for your solution
-# Call the user's solution function with prepared arguments
-# result = solution(*args)
-
-# Output the result
-# print(result)
-`,
-                'ListNode.cpp': `// ListNode.cpp
-
-#include "ListNode.h"
-#include <sstream>
-#include <algorithm>
-#include <fstream>
-
-// Constructor definitions for the classes
-ListNode::ListNode(string x) : val(x), next(nullptr) {}
-DoubleListNode::DoubleListNode(string x) : val(x), next(nullptr), prev(nullptr) {}
-TreeNode::TreeNode(string x) : val(x), left(nullptr), right(nullptr) {}
-
-// Function implementations
-
-vector<string> parseInput(const vector<string>& input_data) {
-vector<string> args;
-for (const string& line : input_data) {
-    if (!line.empty()) {
-        args.push_back(line);
-    }
-}
-return args;
-}
-
-string trimBrackets(const string& str) {
-if (str.front() == '[' && str.back() == ']') {
-    return str.substr(1, str.size() - 2);
-}
-return str;
-}
-
-vector<string> split(const string& str, char delimiter) {
-vector<string> tokens;
-string token;
-stringstream ss(str);
-while (getline(ss, token, delimiter)) {
-    tokens.push_back(token);
-}
-return tokens;
-}
-
-// Template function definitions for converting strings
-template <typename T>
-vector<T> stringToArray(const string& str, T (*convertFunc)(const string&)) {
-string trimmed = trimBrackets(str);
-vector<string> elements = split(trimmed, ',');
-vector<T> result;
-for (auto& element : elements) {
-    element.erase(remove(element.begin(), element.end(), ' '), element.end()); // Remove spaces
-    result.push_back(convertFunc(element)); // Convert string to the required type
-}
-return result;
-}
-
-template <typename T>
-vector<vector<T>> stringToMatrix(const string& input, T (*convertFunc)(const string&)) {
-vector<vector<T>> matrix;
-stringstream ss(input);
-string temp;
-
-// Remove the surrounding brackets
-ss.ignore(2); // Skip the "[[" at the start
-while (getline(ss, temp, ']')) {
-    if (temp.empty()) continue;
-    vector<T> row;
-    stringstream rowStream(temp);
-    string num;
-    while (getline(rowStream, num, ',')) {
-        row.push_back(convertFunc(num)); // Convert the string to the appropriate type
-    }
-    matrix.push_back(row);
-}
-
-return matrix;
-}
-
-// Conversion functions for different types
-int stringToInt(const string& str) {
-return stoi(str); // Converts string to integer
-}
-
-double stringToDouble(const string& str) {
-return stod(str); // Converts string to double
-}
-
-string stringToString(const string& str) {
-return str; // Directly returns the string (for string-based matrices)
-}
-
-// Function implementations for linked list and tree conversions
-ListNode* arrayToLinkedList(const vector<string>& arr) {
-ListNode dummy("");
-ListNode* current = &dummy;
-for (const string& value : arr) {
-    current->next = new ListNode(value);
-    current = current->next;
-}
-return dummy.next;
-}
-
-DoubleListNode* arrayToDoubleLinkedList(const vector<string>& arr) {
-DoubleListNode dummy("");
-DoubleListNode* current = &dummy;
-for (const string& value : arr) {
-    DoubleListNode* node = new DoubleListNode(value);
-    current->next = node;
-    node->prev = current;
-    current = node;
-}
-return dummy.next;
-}
-
-TreeNode* arrayToTree(const vector<string>& arr) {
-if (arr.empty()) return nullptr;
-
-TreeNode* root = new TreeNode(arr[0]);
-queue<TreeNode*> q;
-q.push(root);
-size_t i = 1;
-
-while (i < arr.size()) {
-    TreeNode* current = q.front();
-    q.pop();
-
-    if (i < arr.size() && arr[i] != "null") {
-        current->left = new TreeNode(arr[i]);
-        q.push(current->left);
-    }
-    ++i;
-
-    if (i < arr.size() && arr[i] != "null") {
-        current->right = new TreeNode(arr[i]);
-        q.push(current->right);
-    }
-    ++i;
-}
-
-return root;
-}
-
-// Tree traversal function implementations
-vector<string> inorderTraversal(TreeNode* root) {
-if (!root) return {};
-vector<string> left = inorderTraversal(root->left);
-vector<string> right = inorderTraversal(root->right);
-left.push_back(root->val);
-left.insert(left.end(), right.begin(), right.end());
-return left;
-}
-
-vector<string> preorderTraversal(TreeNode* root) {
-if (!root) return {};
-vector<string> left = preorderTraversal(root->left);
-vector<string> right = preorderTraversal(root->right);
-vector<string> result = {root->val};
-result.insert(result.end(), left.begin(), left.end());
-result.insert(result.end(), right.begin(), right.end());
-return result;
-}
-
-vector<string> postorderTraversal(TreeNode* root) {
-if (!root) return {};
-vector<string> left = postorderTraversal(root->left);
-vector<string> right = postorderTraversal(root->right);
-left.insert(left.end(), right.begin(), right.end());
-left.push_back(root->val);
-return left;
-}
-
-// Function to read input from file
-string readInputFromFile(const string& filename) {
-ifstream file(filename);
-stringstream buffer;
-buffer << file.rdbuf(); // Read the entire file into the buffer
-return buffer.str(); // Return the content as a string
-}
-`,
-                'ListNode.h': `
+// Helper function to initialize the workspace with files
+async function createWorkspace(workspacePath: string) {
+    const helperFiles = [
+        { name: 'ListNode.h', content: 
+`
 // ListNode.h
-
 #ifndef LISTNODE_H
 #define LISTNODE_H
 
 #include <string>
 #include <vector>
+#include <sstream>
+#include <iostream>
+#include <fstream>
 #include <queue>
 
 using namespace std;
 
-// Class declaration for singly-linked list node
-struct ListNode {
-string val;
-ListNode* next;
-ListNode(string x);
-};
-
-// Class declaration for doubly-linked list node
-struct DoubleListNode {
-string val;
-DoubleListNode* next;
-DoubleListNode* prev;
-DoubleListNode(string x);
-};
-
-// Class declaration for binary tree node
-struct TreeNode {
-string val;
-TreeNode* left;
-TreeNode* right;
-TreeNode(string x);
-};
-
-// Function declarations for utility functions
-vector<string> parseInput(const vector<string>& input_data);
-string trimBrackets(const string& str);
-vector<string> split(const string& str, char delimiter);
-
-// Template function declarations for converting strings
+// Class Definitions
 template <typename T>
-vector<T> stringToArray(const string& str, T (*convertFunc)(const string&));
+class ListNode {
+public:
+    T val;
+    ListNode* next;
+    ListNode(T x) : val(x), next(nullptr) {}
+};
 
 template <typename T>
-vector<vector<T>> stringToMatrix(const string& input, T (*convertFunc)(const string&));
+class DoubleListNode {
+public:
+    T val;
+    DoubleListNode* next;
+    DoubleListNode* prev;
+    DoubleListNode(T x) : val(x), next(nullptr), prev(nullptr) {}
+};
 
-// Conversion functions for different types
-int stringToInt(const string& str);
-double stringToDouble(const string& str);
-string stringToString(const string& str);
+template <typename T>
+class TreeNode {
+public:
+    T val;
+    TreeNode* left;
+    TreeNode* right;
+    TreeNode(T x) : val(x), left(nullptr), right(nullptr) {}
+};
 
-// Function declarations for converting arrays to linked lists and trees
-ListNode* arrayToLinkedList(const vector<string>& arr);
-DoubleListNode* arrayToDoubleLinkedList(const vector<string>& arr);
-TreeNode* arrayToTree(const vector<string>& arr);
+// Function Definitions
+// Helper function to trim spaces from the string
+string trim(const string &str) {
+    size_t start = str.find_first_not_of(" \t\n\r");
+    size_t end = str.find_last_not_of(" \t\n\r");
+    return (start == string::npos) ? "" : str.substr(start, end - start + 1);
+}
 
-// Tree traversal function declarations
-vector<string> inorderTraversal(TreeNode* root);
-vector<string> preorderTraversal(TreeNode* root);
-vector<string> postorderTraversal(TreeNode* root);
+// Function to convert a string to an array of integers
+vector<int> stringToIntArray(const string& str) {
+    vector<int> arr;
+    string temp;
+    size_t i = 0;
+    while (i < str.size()) {
+        if (str[i] == ',') {
+            i++;
+            continue;
+        }
+        
+        // Capture a number until we encounter a comma or closing bracket
+        while (i < str.size() && (isdigit(str[i]) || str[i] == '-' || str[i] == '.')) {
+            temp += str[i];
+            i++;
+        }
 
-// Function to read input from file
-string readInputFromFile(const string& filename);
+        if (!temp.empty()) {
+            try {
+                arr.push_back(stoi(temp));  // Convert to integer
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid integer format: " << temp << endl;
+            }
+        }
+        temp.clear();
+        i++;
+    }
+    return arr;
+}
 
-#endif // LISTNODE_H
-`,
-                'Pyhton.py':
+// Function to convert a string to an array of floating-point numbers (double)
+vector<double> stringToDoubleArray(const string& str) {
+    vector<double> arr;
+    string temp;
+    size_t i = 0;
+    while (i < str.size()) {
+        if (str[i] == ',') {
+            i++;
+            continue;
+        }
+        
+        while (i < str.size() && (isdigit(str[i]) || str[i] == '-' || str[i] == '.')) {
+            temp += str[i];
+            i++;
+        }
+
+        if (!temp.empty()) {
+            try {
+                arr.push_back(stod(temp));  // Convert to double
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid double format: " << temp << endl;
+            }
+        }
+        temp.clear();
+        i++;
+    }
+    return arr;
+}
+
+// Function to convert a string to an array of strings
+vector<string> stringToStringArray(const string& str) {
+    vector<string> arr;
+    stringstream ss(str.substr(1, str.size() - 2));  // Remove surrounding brackets
+    string temp;
+    
+    while (getline(ss, temp, ',')) {
+        arr.push_back(trim(temp));  // Trim spaces and add to array
+    }
+    return arr;
+}
+
+vector<vector<int>> stringToIntMatrix(const string& matrixString) {
+    vector<vector<int>> matrix;
+    
+    // Step 1: Remove the outer brackets and any unwanted spaces
+    string content = matrixString.substr(1, matrixString.size() - 2);  // Remove outer brackets
+    content = trim(content);  // Trim leading/trailing spaces from entire content
+
+    // Step 2: Split by "],[" to get each row
+    size_t start = 0;
+    size_t end = content.find("],[");
+
+    while (end != string::npos) {
+        string rowStr = content.substr(start, end - start);
+        matrix.push_back(stringToIntArray(rowStr));  // Convert and add to matrix
+        start = end + 3;  // Move past the "],[" separator
+        end = content.find("],[" , start);
+    }
+
+    // Handle the last row (after the final "],[" or after the first row)
+    if (start < content.size()) {
+        string rowStr = content.substr(start);
+        matrix.push_back(stringToIntArray(rowStr));  // Convert and add to matrix
+    }
+
+    return matrix;
+}
+
+// Function to process a double matrix string into a vector of double vectors
+vector<vector<double>> stringToDoubleMatrix(const string& matrixString) {
+    vector<vector<double>> matrix;
+    
+    // Step 1: Remove the outer brackets and any unwanted spaces
+    string content = matrixString.substr(1, matrixString.size() - 2);  // Remove outer brackets
+    content = trim(content);  // Trim leading/trailing spaces from entire content
+
+    // Step 2: Split by "],[" to get each row
+    size_t start = 0;
+    size_t end = content.find("],[");
+
+    while (end != string::npos) {
+        string rowStr = content.substr(start, end - start);
+        matrix.push_back(stringToDoubleArray(rowStr));  // Convert and add to matrix
+        start = end + 3;  // Move past the "],[" separator
+        end = content.find("],[" , start);
+    }
+
+    // Handle the last row (after the final "],[" or after the first row)
+    if (start < content.size()) {
+        string rowStr = content.substr(start);
+        matrix.push_back(stringToDoubleArray(rowStr));  // Convert and add to matrix
+    }
+
+    return matrix;
+}
+
+vector<vector<string>> stringToStringMatrix(const string& input) {
+    vector<vector<string>> result;
+    stringstream ss(input);
+    string line;
+    while (getline(ss, line)) {
+        if (line.empty()) continue; // Skip empty lines
+        result.push_back(stringToStringArray(line));
+    }
+    return result;
+}
+
+
+int stringToInt(const string& str) {
+   return stoi(str);
+}
+
+double stringToDouble(const string& str) {
+    return stod(str);
+}
+
+string stringToString(const string& str) {
+    return str;
+}
+
+template <typename T>
+ListNode<T>* arrayToLinkedList(const vector<T>& arr) {
+    ListNode<T>* head = nullptr;
+    ListNode<T>* tail = nullptr;
+    for (const T& val : arr) {
+        ListNode<T>* newNode = new ListNode<T>(val);
+        if (!head) {
+            head = newNode;
+            tail = head;
+        } else {
+            tail->next = newNode;
+            tail = newNode;
+        }
+    }
+    return head;
+}
+
+template <typename T>
+DoubleListNode<T>* arrayToDoubleLinkedList(const vector<T>& arr) {
+    DoubleListNode<T>* head = nullptr;
+    DoubleListNode<T>* tail = nullptr;
+    for (const T& val : arr) {
+        DoubleListNode<T>* newNode = new DoubleListNode<T>(val);
+        if (!head) {
+            head = newNode;
+            tail = head;
+        } else {
+            tail->next = newNode;
+            newNode->prev = tail;
+            tail = newNode;
+        }
+    }
+    return head;
+}
+
+template <typename T>
+TreeNode<T>* arrayToTree(const vector<T>& arr) {
+    if (arr.empty()) return nullptr;
+    TreeNode<T>* root = new TreeNode<T>(arr[0]);
+    queue<TreeNode<T>*> nodesQueue;
+    nodesQueue.push(root);
+    size_t i = 1;
+    while (i < arr.size()) {
+        TreeNode<T>* currentNode = nodesQueue.front();
+        nodesQueue.pop();
+        if (i < arr.size()) {
+            currentNode->left = new TreeNode<T>(arr[i++]);
+            nodesQueue.push(currentNode->left);
+        }
+        if (i < arr.size()) {
+            currentNode->right = new TreeNode<T>(arr[i++]);
+            nodesQueue.push(currentNode->right);
+        }
+    }
+    return root;
+}
+
+template <typename T>
+vector<T> inorderTraversal(TreeNode<T>* root) {
+    vector<T> result;
+    if (root) {
+        vector<T> left = inorderTraversal(root->left);
+        result.insert(result.end(), left.begin(), left.end());
+        result.push_back(root->val);
+        vector<T> right = inorderTraversal(root->right);
+        result.insert(result.end(), right.begin(), right.end());
+    }
+    return result;
+}
+
+template <typename T>
+vector<T> preorderTraversal(TreeNode<T>* root) {
+    vector<T> result;
+    if (root) {
+        result.push_back(root->val);
+        vector<T> left = preorderTraversal(root->left);
+        result.insert(result.end(), left.begin(), left.end());
+        vector<T> right = preorderTraversal(root->right);
+        result.insert(result.end(), right.begin(), right.end());
+    }
+    return result;
+}
+
+template <typename T>
+vector<T> postorderTraversal(TreeNode<T>* root) {
+    vector<T> result;
+    if (root) {
+        vector<T> left = postorderTraversal(root->left);
+        result.insert(result.end(), left.begin(), left.end());
+        vector<T> right = postorderTraversal(root->right);
+        result.insert(result.end(), right.begin(), right.end());
+        result.push_back(root->val);
+    }
+    return result;
+}
+
+template <typename T>
+string readInputFromFile(const string& filename) {
+    ifstream file(filename);
+    stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
+// For printing the results
+template <typename T>
+void printArray(const vector<T>& vec) {
+    cout << '[';
+    for (int i = 0; i < vec.size(); i++) {
+        cout << vec[i];
+        if (i < vec.size() - 1) {
+            cout << ", ";
+        }
+    }
+    cout << ']' << endl;
+}
+
+template <typename T>
+void printMatrix(const vector<vector<T>>& matrix) {
+    cout << '[';
+    for (int i = 0; i < matrix.size(); i++) {
+        cout << '[';
+        for (int j = 0; j < matrix[i].size(); j++) {
+            cout << matrix[i][j];
+            if (j < matrix[i].size() - 1) {
+                cout << ", ";
+            }
+        }
+        cout << ']';
+        if (i < matrix.size() - 1) {
+            cout << ", ";
+        }
+    }
+    cout << ']' << endl;
+}
+
+template <typename T>
+void printLinkedList(ListNode<T>* head) {
+    cout << '[';
+    while (head) {
+        cout << head->val;
+        if (head->next) {
+            cout << ", ";
+        }
+        head = head->next;
+    }
+    cout << ']' << endl;
+}
+
+template <typename T>
+void printDoubleLinkedList(DoubleListNode<T>* head) {
+    cout << '[';
+    while (head) {
+        cout << head->val;
+        if (head->next) {
+            cout << ", ";
+        }
+        head = head->next;
+    }
+    cout << ']' << endl;
+}
+
+template <typename T>
+void printTree(TreeNode<int>* root, string treeType) {
+    if (treeType == "inorder") {
+        vector<int> inorder = inorderTraversal(root);
+        printArray(inorder);
+    } else if (treeType == "preorder") {
+        vector<int> preorder = preorderTraversal(root);
+        printArray(preorder);
+    } else if (treeType == "postorder") {
+        vector<int> postorder = postorderTraversal(root);
+        printArray(postorder);
+    }
+}
+#endif
+` },
+        { name: 'ListNode.cpp', content: 
+`
+// ListNode.cpp
+
+#include "ListNode.h"
+
+// Explicit template instantiations for ListNode
+template class ListNode<int>;
+template class ListNode<double>;
+template class ListNode<string>;
+
+// Explicit template instantiations for DoubleListNode
+template class DoubleListNode<int>;
+template class DoubleListNode<double>;
+template class DoubleListNode<string>;
+
+// Explicit template instantiations for TreeNode
+template class TreeNode<int>;
+template class TreeNode<double>;
+template class TreeNode<string>;
+
+// Explicit template instantiations for string to array or matrix
+vector<int> stringToIntArray(const string&);
+vector<double> stringToDoubleArray(const string&); 
+vector<string> stringToStringArray(const string&);
+vector<vector<int>> stringToIntMatrix(const string&);
+vector<vector<double>> stringToDoubleMatrix(const string&);
+vector<vector<string>> stringToStringMatrix(const string&);
+// Explicit template instantiations for arrayToLinkedList
+template ListNode<int>* arrayToLinkedList<int>(const vector<int>&);
+template ListNode<double>* arrayToLinkedList<double>(const vector<double>&);
+template ListNode<string>* arrayToLinkedList<string>(const vector<string>&);
+
+// Explicit template instantiations for arrayToDoubleLinkedList
+template DoubleListNode<int>* arrayToDoubleLinkedList<int>(const vector<int>&);
+template DoubleListNode<double>* arrayToDoubleLinkedList<double>(const vector<double>&);
+template DoubleListNode<string>* arrayToDoubleLinkedList<string>(const vector<string>&);
+
+// Explicit template instantiations for arrayToTree
+template TreeNode<int>* arrayToTree<int>(const vector<int>&);
+template TreeNode<double>* arrayToTree<double>(const vector<double>&);
+template TreeNode<string>* arrayToTree<string>(const vector<string>&);
+
+// Explicit template instantiations for tree traversal functions
+template vector<int> inorderTraversal<int>(TreeNode<int>*);
+template vector<double> inorderTraversal<double>(TreeNode<double>*);
+template vector<string> inorderTraversal<string>(TreeNode<string>*);
+
+template vector<int> preorderTraversal<int>(TreeNode<int>*);
+template vector<double> preorderTraversal<double>(TreeNode<double>*);
+template vector<string> preorderTraversal<string>(TreeNode<string>*);
+
+template vector<int> postorderTraversal<int>(TreeNode<int>*);
+template vector<double> postorderTraversal<double>(TreeNode<double>*);
+template vector<string> postorderTraversal<string>(TreeNode<string>*);
+
+// Explicit template instantiations for print functions
+template void printLinkedList<int>(ListNode<int>*);
+template void printLinkedList<double>(ListNode<double>*);
+template void printLinkedList<string>(ListNode<string>*);
+
+template void printDoubleLinkedList<int>(DoubleListNode<int>*);
+template void printDoubleLinkedList<double>(DoubleListNode<double>*);
+template void printDoubleLinkedList<string>(DoubleListNode<string>*);
+
+template void printTree<int>(TreeNode<int>*, string);
+
+template void printArray<int>(const vector<int>&);
+template void printArray<double>(const vector<double>&);
+template void printArray<string>(const vector<string>&);
+
+`
+},
+        { name: 'ListNode.py', content: 
 `
 import ast
 from collections import deque
@@ -885,38 +777,35 @@ class TreeNode:
         self.left = left
         self.right = right
 
-# Function to parse input data from stdin
 def parse_input(input_data):
-    input_data = [line.strip() for line in input_data if line.strip()]  # Remove empty lines and strip whitespace
-    args = []
+    return [ast.literal_eval(line) if line.strip() else line.strip() for line in input_data]
 
-    for line in input_data:
-        try:
-            parsed = ast.literal_eval(line)
-            args.append(parsed)
-        except (ValueError, SyntaxError):
-            args.append(line)
+def conversion_to_list(arg):
+    return ast.literal_eval(arg) if isinstance(arg, str) else list(arg)
 
-    return args
+def stringToInt(arg):
+    return int(arg)
 
-# Functions to convert arrays to specific data structures
+def stringToDouble(arg):
+    return float(arg)
+
 def array_to_linked_list(arr):
-    head = ListNode(0)  # Dummy head node
-    current = head
+    dummy = ListNode()
+    current = dummy
     for value in arr:
         current.next = ListNode(value)
         current = current.next
-    return head.next  # Return the actual head node
+    return dummy.next
 
 def array_to_double_linked_list(arr):
-    head = DoubleListNode(0)  # Dummy head node
-    current = head
+    dummy = DoubleListNode()
+    current = dummy
     for value in arr:
         node = DoubleListNode(value)
         current.next = node
         node.prev = current
         current = node
-    return head.next  # Return the actual head node
+    return dummy.next
 
 def array_to_tree(arr):
     if not arr:
@@ -936,7 +825,6 @@ def array_to_tree(arr):
         i += 1
     return root
 
-# Tree Traversal Functions
 def traversal_inorder(root):
     return traversal_inorder(root.left) + [root.val] + traversal_inorder(root.right) if root else []
 
@@ -946,128 +834,359 @@ def traversal_preorder(root):
 def traversal_postorder(root):
     return traversal_postorder(root.left) + traversal_postorder(root.right) + [root.val] if root else []
 
-# Conversion Function for General Use
-def conversion_to_list(arg):
-    for a in range(len(arg)):
-        if '[' in arg[a]:
-            arg[a] = ast.literal_eval(arg[a])
-    return arg
+def print_linked_list(head):
+    values = []
+    while head:
+        values.append(head.val)
+        head = head.next
+    print("Empty List" if not values else f"[{', '.join(map(str, values))}]")
+
+def print_double_linked_list(head):
+    values = []
+    while head:
+        values.append(head.val)
+        head = head.next
+    print("Empty List" if not values else f"[{', '.join(map(str, values))}]")
+
+def print_tree(root, traversal_type="inorder"):
+    if traversal_type == "preorder":
+        result = traversal_preorder(root)
+    elif traversal_type == "inorder":
+        result = traversal_inorder(root)
+    elif traversal_type == "postorder":
+        result = traversal_postorder(root)
+    else:
+        print(f"Unsupported traversal type: {traversal_type}")
+        return
+    print(f"[{', '.join(map(str, result))}]")
+
 `
-                };
+},
+        { name: 'main.cpp', content: 
+`
+#include <bits/stdc++.h>
+#include "ListNode.h"
+using namespace std;
 
-                for (const [fileName, content] of Object.entries(files)) {
-                    fs.writeFileSync(path.join(fileName), content, 'utf8');
-                }
-            }
+
+vector<string> parse_input(const string& input_data) {
+    vector<string> result;
+    stringstream ss(input_data);
+    string line;
+    
+    while (getline(ss, line)) {
+        result.push_back(line);
+    }
+    
+    return result;
+}
+
+/**
+ * USER INSTRUCTIONS:
+ *The argumetns are in the form of a string of array, where the elements of the array are arguments.
+ *User need to convert the each element of the array to the desired data type.
+ *The fucntions that are present are:
+    *stringToIntArray(string str) : Converts string to integer array
+    *stringToIntMatrix(string str) : Converts string to integer matrix
+    *stringToStringArray(string str) : Converts string to string array
+    *stringToStringMatrix(string str) : Converts string to string matrix
+    *stringToDoubleArray(string str) : Converts string to double array
+    *stringToDoubleMatrix(string str) : Converts string to double matrix
+    *stringToDouble(string str) : Converts string to double
+    *stringToString(string str) : Converts string to string
+    *stringToInt(string str) : Converts string to integer
+    *arrayToLinkedList(vector<T> arr) : Converts array to linked list
+    *arrayToDoubleLinkedList(vector<T> arr) : Converts array to double linked list
+    *arrayToTree(vector<T> arr) : Converts array to tree
+    *inorderTraversal(TreeNode<T>* root) : Returns the inorder traversal of the tree
+    *preorderTraversal(TreeNode<T>* root) : Returns the preorder traversal of the tree
+    *postorderTraversal(TreeNode<T>* root) : Returns the postorder traversal of the tree
+*To print the results, use the print functions.
+    *printLinkedList(ListNode<T>* head) : Prints the linked list
+    *printDoubleLinkedList(DoubleListNode<T>* head) : Prints the double linked list
+    *printTree(TreeNode<T>* root, string order) : Prints the tree in the given order
+    *printMatrix(vector<vector<T>> matrix) : Prints the matrix
+    *printArray(vector<T> arr) : Prints the array
+ */
+void rotate(vector<vector<int>>& matrix) {
+    int n = matrix.size();
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            swap(matrix[i][j], matrix[j][i]);
         }
+    }
 
-        return workspaceDir;
-    };
+    for (int i = 0; i < n; i++) {
+        reverse(matrix[i].begin(), matrix[i].end());
+    }
+}
 
-    // Command 1: Create Workspace
-    const createWorkspace = vscode.commands.registerCommand('extension.createWorkspace', async () => {
-        const workspaceDir = createWorkspaceDir();
-        vscode.window.showInformationMessage(`Workspace created at ${workspaceDir}`);
+int main() {
+    // Read all input data as a string
+    string input_data;
+    string line;
+    
+    while (getline(cin, line)) {
+        input_data += line + "\n";  // Accumulate all lines in the input_data string
+    }
+    
+    // Parse the input data
+    vector<string> args = parse_input(input_data);
+    // Now you can use your desired operation
+    vector<vector<int>> matrix = stringToIntMatrix(args[0]);
+    rotate(matrix);
+    printMatrix(matrix);
+    return 0;
+}
 
-        // Open the created workspace in a new VS Code window
-        const uri = vscode.Uri.file(workspaceDir);
-        vscode.commands.executeCommand('vscode.openFolder', uri, true);
+`
+},
+        { name: 'main.py', content:
+`
+import sys
+from listNode import parse_input, conversion_to_list, stringToDouble, stringToInt,array_to_linked_list, array_to_double_linked_list, array_to_tree, traversal_inorder, traversal_preorder, traversal_postorder
+
+"""
+Instructions for the User:
+1. Write your solution in the User Solution Code section.
+2. The arguments are in the form of a list. The first element of the list is the first argument, the second element of the list is the second argument, and so on.
+3. The input is already parsed and stored in the variable args. args[0] is the first argument, args[1] is the second argument and so on.
+4. The functions that are pre-defined are:
+    *conversion_to_list(arg) : Converts the input arguments to a list if the input is in string format.
+    *stringToInt(arg) : Converts the input argument to an integer if the input is in string format.
+    *stringToDouble(arg) : Converts the input argument to a double if the input is in string format.
+    *array_to_linked_list(arr) : Converts the input list to a linked list.
+    *array_to_double_linked_list(arr) : Converts the input list to a double linked list.
+    *array_to_tree(arr) : Converts the input list to a binary tree.
+    *traversal_inorder(root) : Returns the inorder traversal of the binary tree.
+    *traversal_preorder(root) : Returns the preorder traversal of the binary tree.
+    *traversal_postorder(root) : Returns the postorder traversal of the binary tree.
+5. The funtions for printing the results are:
+    *printLinkedList(head) : Prints the linked list.
+    *printDoubleLinkedList(head) : Prints the double linked list.
+    *printTree(root, order) : Prints the binary tree in the given order. The order can be 'inorder', 'preorder', 'postorder'.
+   
+"""
+
+# User Solution Code Goes Here
+
+# Read input for arguments
+arg = sys.stdin.read().strip().split('\n')
+
+# Parse and process arguments
+args = parse_input(arg)
+
+# Example: Convert inputs to required formats as needed for your solution
+#Example problem: Rotate Image
+def rotate(matrix):
+    n = len(matrix)
+    for i in range(n):
+        for j in range(i + 1, n):
+            matrix[i][j], matrix[j][i] = matrix[j][i], matrix[i][j]
+
+    for i in range(n):
+        matrix[i].reverse()
+
+    return matrix
+args = conversion_to_list(args[0])
+print(rotate(args))
+"""
+#Example problem: Two Sum
+def twoSum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+args[0] = conversion_to_list(args[0])
+args[1] = stringToInt(args[1])
+result = twoSum(args[0], args[1])
+print(result)
+"""
+`
+},
+    ];
+
+    // Create the workspace directory if it doesn't exist
+    const userSolutionsDir = path.join(workspacePath, 'user_solutions');
+    if (!fs.existsSync(workspacePath)) {
+        fs.mkdirSync(workspacePath, { recursive: true });
+    }
+
+    if (!fs.existsSync(userSolutionsDir)) {
+        fs.mkdirSync(userSolutionsDir, { recursive: true });
+    }
+
+    // Create helper and main files if they don't already exist
+    for (const file of helperFiles) {
+        const filePath = path.join(userSolutionsDir, file.name);
+        if (!fs.existsSync(filePath)) {
+            fs.writeFileSync(filePath, file.content, 'utf-8');
+        }
+    }
+
+    vscode.window.showInformationMessage('Workspace initialized with helper files and solution templates.');
+}
+// Helper function to get the user solution file (either main.cpp or main.py)
+async function getUserSolutionFile(): Promise<string | undefined> {
+    const userSolutionsDir = path.join(vscode.workspace.rootPath || '', 'user_solutions');
+    const files = fs.readdirSync(userSolutionsDir);
+
+    // Filter out solution files for C++ and Python
+    const solutionFiles = files.filter(file => file === 'main.cpp' || file === 'main.py');
+
+    // If no solution files are found, show an error message
+    if (solutionFiles.length === 0) {
+        vscode.window.showErrorMessage('No solution file found in the workspace. Please ensure main.cpp or main.py exists.');
+        return undefined;
+    }
+
+    // Ask the user to select the solution file from the available options
+    const selectedFile = await vscode.window.showQuickPick(solutionFiles, {
+        placeHolder: 'Select your solution file (main.cpp or main.py)',
     });
 
-    // Command 2: Fetch and Run Test Cases
-    const fetchRunTestCases = vscode.commands.registerCommand('extension.fetchRunTestCases', async () => {
-        console.log('Fetch and Run Test Cases command triggered.');
+    if (!selectedFile) {
+        vscode.window.showErrorMessage('No solution file selected. Operation aborted.');
+        return undefined;
+    }
 
-        // Prompt for problem name
-        const problemName = await vscode.window.showInputBox({
-            prompt: 'Enter the LeetCode problem name',
+    return path.join(userSolutionsDir, selectedFile);
+}
+
+// Extension activation
+export function activate(context: vscode.ExtensionContext) {
+    console.log('CPH LeetCode Extension Activated.');
+
+    // Create workspace command
+    const createWorkspaceCommand = vscode.commands.registerCommand('extension.createWorkspace', async () => {
+        // Prompt the user to select a folder where the workspace will be created
+        const folderUri = await vscode.window.showOpenDialog({
+            canSelectFolders: true,
+            canSelectFiles: false,
+            openLabel: 'Select or Create a Folder for Workspace',
         });
 
-        if (!problemName) {
-            vscode.window.showErrorMessage('Problem name is required!');
+        if (!folderUri || folderUri.length === 0) {
+            vscode.window.showErrorMessage('No folder selected. Workspace creation aborted.');
             return;
         }
 
-        // Prompt for programming language
-        const language = await vscode.window.showQuickPick(['python', 'cpp'], {
-            placeHolder: 'Choose the programming language for the solution file',
-        });
+        const workspacePath = folderUri[0].fsPath;
 
-        if (!language) {
-            vscode.window.showErrorMessage('Language is required!');
-            return;
-        }
+        // Initialize the workspace with required files
+        await createWorkspace(workspacePath);
 
-        // Fetch and process test cases
-        const url = `https://leetcode.com/problems/${problemName}/description/`;
-        const outputDir = path.join(createWorkspaceDir(), 'testcases');
+        // Optionally, open the created workspace folder in VSCode
+        vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(workspacePath), true);
+    });
 
-        try {
+    // Fetch and save test cases command
+    const fetchAndSaveTestCases = vscode.commands.registerCommand('extension.fetchAndSaveTestCases', async () => {
+        try { 
+            const problemName = await vscode.window.showInputBox({
+                prompt: 'Enter the LeetCode problem name (e.g., "two-sum")',
+                placeHolder: 'two-sum',
+            });
+    
+            if (!problemName) {
+                vscode.window.showErrorMessage('Problem name is required!');
+                return;
+            }
+    
+            vscode.window.showInformationMessage('Fetching and saving test cases...');
+            const url = `https://leetcode.com/problems/${problemName}/description/`;
+            console.log('Fetching test cases from URL:', url);  // Added logging
+    
+            const outputDir = path.join(vscode.workspace.rootPath || '', 'testcases');
             if (fs.existsSync(outputDir)) {
                 fs.rmSync(outputDir, { recursive: true, force: true });
+                console.log('Old test cases directory removed.');
             }
-
+    
             const { inputs, expectedOutputs } = await fetchTestCases(url);
-
+    
+            console.log('Fetched inputs:', inputs); // Add more logs here
+            console.log('Fetched expectedOutputs:', expectedOutputs);
+    
             if (!inputs.length || !expectedOutputs.length) {
-                vscode.window.showErrorMessage('No test cases found.');
+                vscode.window.showErrorMessage('No test cases found. Please check the problem URL.');
+                return;
+            }
+    
+            await saveTestCases(inputs, expectedOutputs, outputDir);
+            vscode.window.showInformationMessage(`Test cases saved successfully to ${outputDir}.`);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Error while fetching and saving test cases: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    });    
+    // Run user code command
+    const runUserCode = vscode.commands.registerCommand('extension.runUserCode', async () => {
+        try {
+            vscode.window.showInformationMessage('Running your solution against test cases...');
+
+            const solutionFile = await getUserSolutionFile();
+            if (!solutionFile) {return;}  // Exit if no solution file is found
+
+            const testcasesDir = path.join(vscode.workspace.rootPath || '', 'testcases');
+            if (!fs.existsSync(testcasesDir)) {
+                vscode.window.showErrorMessage('Testcases directory not found. Please fetch and save test cases first.');
                 return;
             }
 
-            await saveTestCases(inputs, expectedOutputs, outputDir);
-            vscode.window.showInformationMessage('Test cases fetched and saved successfully!');
+            const testCases = fs.readdirSync(testcasesDir).filter((dir) => dir.startsWith('testcase_'));
+            if (!testCases.length) {
+                vscode.window.showErrorMessage('No test cases found. Please fetch and save test cases first.');
+                return;
+            }
 
-            const results: any[] = [];
-            await Promise.all(
-                inputs.map(async (_, i) => {
-                    const testCaseDir = path.join(outputDir, `testcase_${i + 1}`);
-                    const expectedOutput = expectedOutputs[i].trim();
+            const results = await Promise.all(
+                testCases.map(async (testCase, index) => {
+                    const testDir = path.join(testcasesDir, testCase);
+                    const inputPath = path.join(testDir, 'input.txt');
+                    const expectedOutputPath = path.join(testDir, 'expected_output.txt');
+                    const expectedOutput = fs.readFileSync(expectedOutputPath, 'utf-8').trim();
 
-                    try {
-                        const userOutput = await new Promise<string>((resolve, reject) => {
-                            runCode(
-                                language,
-                                path.join(testCaseDir, 'input.txt'),
-                                path.join(testCaseDir, 'output.txt'),
-                                path.join(createWorkspaceDir(), 'user_files', `main.${language}`),
-                                (err, output) => {
-                                    if (err) {
-                                        reject(err);
-                                    } else {
-                                        resolve(output || '');
-                                    }
+                    return new Promise<{ test: number; status: string; reason?: string }>((resolve) => {
+                        runCode('python', inputPath, path.join(testDir, 'output.txt'), solutionFile, (err, userOutput) => {
+                            if (err) {
+                                resolve({ test: index + 1, status: 'Error', reason: err.message });
+                            } else {
+                                const normalize = (str: string) => str.replace(/\s+/g, '').trim();
+                                if (normalize(userOutput || '') === normalize(expectedOutput)) {
+                                    resolve({ test: index + 1, status: 'Passed' });
+                                } else {
+                                    resolve({
+                                        test: index + 1,
+                                        status: 'Failed',
+                                        reason: `Expected "${expectedOutput}", but got "${userOutput}"`,
+                                    });
                                 }
-                            );
+                            }
                         });
-
-                        if (userOutput.trim() === expectedOutput) {
-                            results.push({ test: i + 1, status: 'Passed' });
-                        } else {
-                            results.push({
-                                test: i + 1,
-                                status: 'Failed',
-                                reason: `Expected "${expectedOutput}", but got "${userOutput}"`,
-                            });
-                        }
-                    } catch (err: any) {
-                        results.push({ test: i + 1, status: 'Error', reason: err.message });
-                    }
+                    });
                 })
             );
 
-            const passed = results.filter((r) => r.status === 'Passed').length;
-            const failed = results.filter((r) => r.status === 'Failed').length;
+            const passed = results.filter((result) => result.status === 'Passed').length;
+            const failed = results.filter((result) => result.status === 'Failed').length;
+            const errors = results.filter((result) => result.status === 'Error').length;
 
-            vscode.window.showInformationMessage(`Results: ${passed} Passed, ${failed} Failed`);
-        } catch (error: unknown) {
-            vscode.window.showErrorMessage(`Error: ${(error as Error).message}`);
+            vscode.window.showInformationMessage(`Summary: ${passed} Passed, ${failed} Failed, ${errors} Errors.`);
+        } catch (error) {
+            vscode.window.showErrorMessage(
+                `Error while running the code: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     });
 
-    context.subscriptions.push(createWorkspace);
-    context.subscriptions.push(fetchRunTestCases);
+    context.subscriptions.push(createWorkspaceCommand, fetchAndSaveTestCases, runUserCode);
 }
 
 export function deactivate() {
-    console.log('CPH Leetcode Extension Deactivated.');
+    console.log('CPH LeetCode Extension Deactivated.');
 }
