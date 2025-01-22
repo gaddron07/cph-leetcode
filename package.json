@@ -13,12 +13,16 @@
   "contributes": {
     "commands": [
       {
-       "command": "extension.createWorkspace",
-        "title": "CPH: Create Workspace" 
+        "command": "extension.createWorkspace",
+        "title": "CPH: Create Workspace"
       },
       {
-        "command": "extension.fetchRunTestCases",
-        "title": "CPH: Fetch and Run LeetCode Test Cases"
+        "command": "extension.fetchAndSaveTestCases",
+        "title": "CPH: Fetch and Save Test Cases"
+      },
+      {
+        "command": "extension.runUserCode",
+        "title": "Run Test Cases and User Code"
       }
     ]
   },
