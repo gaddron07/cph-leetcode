@@ -14,15 +14,15 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
 ### 2. **Local Test Case Execution**
 
 - Run your solution against test cases locally.
-- Supports multiple programming languages (e.g., C++, Python, JavaScript).
+- Supports multiple programming languages (e.g., C++, Python).
 - Compare actual output with expected output effortlessly.
 
 ### 3. **Workspace Generation**
 
-- Generates a structured workspace for solving LeetCode problems, including the following directories and files:
+- Generate a structured workspace for solving LeetCode problems, including the following directories and files:
   - `src/` (contains core scripts like `fetchTestCases.ts`, `saveTestCases.ts`, and `runCode.ts`)
   - `testcases/` (stores input, output, and expected output files)
-  - `user_solutions/` (for your custom solutions)
+  - `user_solution` (for your custom solutions)
 
 ### 4. **Extensible Support**
 
@@ -41,7 +41,8 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
   1. Enter the name of the problem (e.g., `Two Sum: two-sum`, `Rotate Image: rotate-image`).
   2. Specify the programming language (e.g., `C++`, `Python`).
   3. Provide the user code file name (e.g., `main.cpp`, `main.py`).
-
+  4. Asks for the extra testcase to test with the fetched testcases.
+  5. Also shows the errors present in the code, if there are none then compares the result directly.
 ---
 
 ## Installation
@@ -69,17 +70,15 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
 ## Usage Instructions
 
 1. **Generate a Workspace**:
-
-   - Open the Command Palette in VS Code (`Ctrl+Shift+P` or `Cmd+Shift+P` on Mac).
-   - Run the command: `CPH: Generate Workspace`.
-
-2. **Fetch Test Cases**:
+  -The instructions and format for wirting the code with example are present in the main.cpp(for codes in cpp) and main.py(for codes in python).
+   
+3. **Fetch Test Cases**:
 
    - Navigate to a LeetCode problem in your browser.
-   - Copy the problem URL.
-   - Use the `CPH: Fetch Test Cases` command to fetch and save the test cases locally.
+   - The testcases can directly fetch with the name of proble.
+   - For example if the problem is Two Sum then the format of name must be like two-sum.
 
-3. **Write Your Solution**:
+4. **Write Your Solution**:
 
    - Implement your solution in the provided `main.cpp`, `main.py`, or any other supported file with any desired name.
    - Ensure the provided snippets in `main.cpp` and `main.py` are used. These snippets are mandatory to parse the input correctly and initialize the arguments and they contain the instructions and functions that are present  to correctly parse the input.
@@ -98,9 +97,10 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
        target = int(arg[1])
        ```
    - Utility functions like `stringToIntArray`, `stringToInt` (C++), and `string_to_int_array`, `int` (Python) are provided to save time.
-   - Not only this Funtions but there are functions to convert into desired data structure such as LinkedList,DoublyLinkedList and Trees of different traversal.
+   - There are more functions that can be used in other problems, these functions are needed as the input format in leetcode are generally array which then are needed to convert into desired format.
+   - Funtions like stringToIntArra then arrayToLinkedlist are used to convert the argument into a Linkedlist or some other data structures as Tree,DoublyLinkedList..etc.
 
-4. **Run Your Code**:
+5. **Run Your Code**:
 
    - Execute the workflow from the terminal using:
      ```bash
@@ -112,15 +112,15 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
      3. Provide the user code file name (e.g., `main.cpp`, `main.py`).
    - The script will run your solution against the saved test cases and display the results.
 
-5. **Add Custom Test Cases**:
+6. **Add Custom Test Cases**:
 
-   - Manually add input and expected output files in the `testcases/` directory.
+   - Manually add input and expected output files in the `testcases/` directory or add them in terminal when it asks for the additional testcase.
    - Ensure the file structure follows the naming convention (`input.txt`, `expected_output.txt`, etc.).
 
 ---
-
-## Project Structure
-/project 
+``` bash
+## WorkSpace structure
+/WorkSpace
 |-- src 
 | |-- fetchTestCases.ts 
 | |-- saveTestCases.ts 
@@ -136,7 +136,7 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
 | |--ListNode.py 
 | |-- main.cpp 
 | |-- main.py
-
+```
 ## Future Enhancements
 
 - Support for additional competitive programming platforms.
