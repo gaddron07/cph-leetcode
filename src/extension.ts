@@ -8,7 +8,7 @@ import { runCode } from './runCode';
 // Helper function to initialize the workspace with files
 async function createWorkspace(workspacePath: string) {
     const helperFiles = [
-        { name: 'ListNode.h', content: 
+        { name: 'FuntionsCpp.h', content: 
 `
 // ListNode.h
 #ifndef LISTNODE_H
@@ -385,7 +385,7 @@ void printTree(TreeNode<int>* root, string treeType) {
 }
 #endif
 ` },
-        { name: 'ListNode.cpp', content: 
+        { name: 'Export_Functions.cpp', content: 
 `
 // ListNode.cpp
 
@@ -458,7 +458,7 @@ template void printArray<string>(const vector<string>&);
 
 `
 },
-        { name: 'ListNode.py', content: 
+        { name: 'Export_Fucntions.py', content: 
 `
 import ast
 from collections import deque
