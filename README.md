@@ -49,23 +49,137 @@ The Competitive Programming Helper (CPH) is a Visual Studio Code extension desig
 
 1. **Pre-requisites**:
 
-   - Node.js (for running Puppeteer)
-   - A compiler or interpreter for your preferred programming language (e.g., `g++` for C++, `python3` for Python).
+   - Node.js (version 14 or later)
+  - npm (Node package manager)
+  - VS Code (for development and testing)
 
 2. **Setup**:
 
    - Clone this repository.
    - Open the project in Visual Studio Code.
-   - Install required Node.js dependencies:
-     ```bash
-     npm install
-     ```
+   - Install required Node.js and other dependencies:
+     - Clone this repository.
+- Open the project in Visual Studio Code.
+- Install required Node.js dependencies:
+  
+  ```bash
+  npm install
+  npm install puppeteer
+  npm install typescript --save-dev
+  npm install @types/vscode --save-dev
+  npm install axios
+  npm install fs-extra
+  npm install jsdom
+  ```
 
-3. **Enable the Extension**:
+- Install development tools:
+  ```bash
+  npm install --save-dev nodemon
+  npm install --save-dev eslint
+  npm install --save-dev prettier
+  npm install --save-dev jest
+  ```
 
-   - Run the extension in debug mode or package it and install it as a `.vsix` file.
+- Install VS Code extension packaging tools:
+  ```bash
+  npm install --save-dev vsce
+  ```
 
----
+## Development Commands
+
+- Compile TypeScript files (if using TypeScript):
+  ```bash
+  npx tsc
+  ```
+
+- Run the project:
+  ```bash
+  node src/index.js
+  ```
+
+- Run the extension in VS Code (for testing):
+  ```bash
+  code --extensionDevelopmentPath=.
+  ```
+
+- Run unit tests:
+  ```bash
+  npm test
+  ```
+
+- Run tests with coverage report:
+  ```bash
+  npm run test -- --coverage
+  ```
+
+- Lint the code (using ESLint):
+  ```bash
+  npm run lint
+  ```
+
+- Format the code (using Prettier):
+  ```bash
+  npm run format
+  ```
+
+- Check TypeScript types (if using TypeScript):
+  ```bash
+  npx tsc --noEmit
+  ```
+
+- Watch files for changes and recompile automatically (if using TypeScript):
+  ```bash
+  npx nodemon --exec "npx tsc"
+  ```
+
+- Run Puppeteer script (if using Puppeteer for fetching test cases):
+  ```bash
+  node src/fetchTestCases.js
+  ```
+
+## Build and Packaging
+
+- Build the extension:
+  ```bash
+  npm run build
+  ```
+
+- Package the extension into a `.vsix` file for distribution:
+  ```bash
+  vsce package
+  ```
+
+- Publish the extension to the VS Code marketplace:
+  ```bash
+  vsce publish
+  ```
+
+- Publish a specific version of the extension:
+  ```bash
+  vsce publish <version>
+  ```
+
+- Generate release notes for a new version:
+  ```bash
+  vsce release-notes
+  ```
+
+## Additional Commands
+
+- Clean up generated files (e.g., compiled `.js` files):
+  ```bash
+  npm run clean
+  ```
+
+- Install all dependencies after cloning the repository:
+  ```bash
+  npm ci
+  ```
+
+- Upgrade all dependencies to the latest allowed versions:
+  ```bash
+  npm update
+  ```
 
 ## Usage Instructions
 
